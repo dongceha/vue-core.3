@@ -63,6 +63,7 @@ export const hydrate = ((...args) => {
 }) as RootHydrateFunction
 
 export const createApp = ((...args) => {
+  // DC: 创建APP 对象，延时渲染，方便 treeshaking
   const app = ensureRenderer().createApp(...args)
 
   if (__DEV__) {
@@ -71,7 +72,9 @@ export const createApp = ((...args) => {
   }
 
   const { mount } = app
+  // DC: 重写 mount 函数，方便跨平台
   app.mount = (containerOrSelector: Element | ShadowRoot | string): any => {
+    // DC: 标准化容器
     const container = normalizeContainer(containerOrSelector)
     if (!container) return
 
@@ -98,6 +101,7 @@ export const createApp = ((...args) => {
     }
 
     // clear content before mounting
+    // DC: 清空节点
     container.innerHTML = ''
     const proxy = mount(container, false, container instanceof SVGElement)
     if (container instanceof Element) {

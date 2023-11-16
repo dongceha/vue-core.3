@@ -187,6 +187,7 @@ type NormalizedProp =
 export type NormalizedProps = Record<string, NormalizedProp>
 export type NormalizedPropsOptions = [NormalizedProps, string[]] | []
 
+// DC: 初始化props
 export function initProps(
   instance: ComponentInternalInstance,
   rawProps: Data | null,
@@ -213,8 +214,13 @@ export function initProps(
     validateProps(rawProps || {}, props, instance)
   }
 
+  // DC: 有状态组件，
   if (isStateful) {
     // stateful
+    // DC: 将 props 设置为 响应式
+    // DC: 正常情况下，不是响应式的，父组件更新 props ，子组件也能获取到，并且重新渲染
+    // 但是这里是为了考虑到 子组件可以 watch 监听 props ，才将其设置为 shallowReactive
+    // DC: !!!! 这么说，纯纯从代码层面理解，vue3.x 的props 是可以被子组件进行修改的，而且也会被响应式监听到
     instance.props = isSSR ? props : shallowReactive(props)
   } else {
     if (!instance.type.props) {
@@ -235,6 +241,7 @@ function isInHmrContext(instance: ComponentInternalInstance | null) {
   }
 }
 
+// DC: 将父组件更新的新值赋值给子组件的 instance 上面
 export function updateProps(
   instance: ComponentInternalInstance,
   rawProps: Data | null,
@@ -370,10 +377,10 @@ export function updateProps(
 }
 
 function setFullProps(
-  instance: ComponentInternalInstance,
-  rawProps: Data | null,
-  props: Data,
-  attrs: Data
+  instance: ComponentInternalInstance, // 组件实例
+  rawProps: Data | null, // 原始的值
+  props: Data, // 解析后的 props 数据
+  attrs: Data  // 解析后的 普通属性 数据
 ) {
   const [options, needCastKeys] = instance.propsOptions
   let hasAttrsChanged = false
@@ -426,7 +433,7 @@ function setFullProps(
       }
     }
   }
-
+  //  DC: 标准化 props 配置的过程
   if (needCastKeys) {
     const rawCurrentProps = toRaw(props)
     const castValues = rawCastValues || EMPTY_OBJ
@@ -456,6 +463,7 @@ function resolvePropValue(
 ) {
   const opt = options[key]
   if (opt != null) {
+    // DC: 设置默认值
     const hasDefault = hasOwn(opt, 'default')
     // default values
     if (hasDefault && value === undefined) {
@@ -484,6 +492,7 @@ function resolvePropValue(
       }
     }
     // boolean casting
+    // DC: 表示这是一个含有 boolean类型的props
     if (opt[BooleanFlags.shouldCast]) {
       if (isAbsent && !hasDefault) {
         value = false
@@ -491,6 +500,8 @@ function resolvePropValue(
         opt[BooleanFlags.shouldCastTrue] &&
         (value === '' || value === hyphenate(key))
       ) {
+        // DC: 可以看到这里对 布尔类型的值进行了特殊处理
+        // 如果传入的是一个空字符串，则设置为 true
         value = true
       }
     }
@@ -542,7 +553,8 @@ export function normalizePropsOptions(
     }
     return EMPTY_ARR as any
   }
-
+  // DC: 判断当前组件定义的 props 是否是一个数组，
+  // 如果是数组的话，就将 其 转化为 一个对象
   if (isArray(raw)) {
     for (let i = 0; i < raw.length; i++) {
       if (__DEV__ && !isString(raw[i])) {
@@ -725,12 +737,6 @@ function getInvalidTypeMessage(
   value: unknown,
   expectedTypes: string[]
 ): string {
-  if (expectedTypes.length === 0) {
-    return (
-      `Prop type [] for prop "${name}" won't match anything.` +
-      ` Did you mean to use type Array instead?`
-    )
-  }
   let message =
     `Invalid prop: type check failed for prop "${name}".` +
     ` Expected ${expectedTypes.map(capitalize).join(' | ')}`

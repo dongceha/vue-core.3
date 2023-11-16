@@ -316,11 +316,13 @@ const KeepAliveImpl: ComponentOptions = {
         // avoid vnode being mounted as fresh
         vnode.shapeFlag |= ShapeFlags.COMPONENT_KEPT_ALIVE
         // make this key the freshest
+        // DC: 让 这个 key 始终保持新鲜
         keys.delete(key)
         keys.add(key)
       } else {
         keys.add(key)
         // prune oldest entry
+        // DC: 删除最久不用的 key
         if (max && keys.size > parseInt(max as string, 10)) {
           pruneCacheEntry(keys.values().next().value)
         }

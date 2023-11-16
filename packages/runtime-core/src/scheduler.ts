@@ -69,13 +69,8 @@ function findInsertionIndex(id: number) {
 
   while (start < end) {
     const middle = (start + end) >>> 1
-    const middleJob = queue[middle]
-    const middleJobId = getId(middleJob)
-    if (middleJobId < id || (middleJobId === id && middleJob.pre)) {
-      start = middle + 1
-    } else {
-      end = middle
-    }
+    const middleJobId = getId(queue[middle])
+    middleJobId < id ? (start = middle + 1) : (end = middle)
   }
 
   return start
@@ -88,6 +83,7 @@ export function queueJob(job: SchedulerJob) {
   // if the job is a watch() callback, the search will start with a +1 index to
   // allow it recursively trigger itself - it is the user's responsibility to
   // ensure it doesn't end up in an infinite loop.
+  // DC: 异步任务队列
   if (
     !queue.length ||
     !queue.includes(
@@ -105,6 +101,7 @@ export function queueJob(job: SchedulerJob) {
 }
 
 function queueFlush() {
+  // DC: 当正在执行是，重复调用 queueFlush 无效
   if (!isFlushing && !isFlushPending) {
     isFlushPending = true
     currentFlushPromise = resolvedPromise.then(flushJobs)
@@ -161,6 +158,7 @@ export function flushPreFlushCbs(
 
 export function flushPostFlushCbs(seen?: CountMap) {
   if (pendingPostFlushCbs.length) {
+    // DC: 拷贝副本，防止cb 执行过程中，修改了之前的 cbs
     const deduped = [...new Set(pendingPostFlushCbs)]
     pendingPostFlushCbs.length = 0
 
@@ -208,7 +206,9 @@ const comparator = (a: SchedulerJob, b: SchedulerJob): number => {
 }
 
 function flushJobs(seen?: CountMap) {
+  // DC: 异步任务是否正在等待
   isFlushPending = false
+  // DC: 异步任务是否正在执行
   isFlushing = true
   if (__DEV__) {
     seen = seen || new Map()
@@ -221,6 +221,7 @@ function flushJobs(seen?: CountMap) {
   //    priority number)
   // 2. If a component is unmounted during a parent component's update,
   //    its update can be skipped.
+  // DC: 为了渲染做到先父后子，先做一个排序
   queue.sort(comparator)
 
   // conditional usage of checkRecursiveUpdate must be determined out of
@@ -229,7 +230,7 @@ function flushJobs(seen?: CountMap) {
   // they would get eventually shaken by a minifier like terser, some minifiers
   // would fail to do that (e.g. https://github.com/evanw/esbuild/issues/1610)
   const check = __DEV__
-    ? (job: SchedulerJob) => checkRecursiveUpdates(seen!, job)
+    ? (job: SchedulerJob) => checkRecursiveUpdates(seen!, job) // DC: 检测是否有循环更新的
     : NOOP
 
   try {
@@ -264,6 +265,7 @@ function checkRecursiveUpdates(seen: CountMap, fn: SchedulerJob) {
     seen.set(fn, 1)
   } else {
     const count = seen.get(fn)!
+    // DC: 如果同一个函数执行次数超过了 100，直接给报个警告
     if (count > RECURSION_LIMIT) {
       const instance = fn.ownerInstance
       const componentName = instance && getComponentName(instance.type)

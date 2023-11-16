@@ -78,7 +78,8 @@ export function withCtx(
   if ((fn as ContextualRenderFn)._n) {
     return fn
   }
-
+  // DC: 这么别扭，不断设置 instance 的过程是为了在子组件设置slot 的过程中哦该
+  // 作用域依旧是父组件的作用域
   const renderFnWithContext: ContextualRenderFn = (...args: any[]) => {
     // If a user calls a compiled slot inside a template expression (#1745), it
     // can mess up block tracking, so by default we disable block tracking and

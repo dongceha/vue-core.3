@@ -488,7 +488,7 @@ function createBaseVNode(
     (vnode.patchFlag > 0 || shapeFlag & ShapeFlags.COMPONENT) &&
     // the EVENTS flag is only for hydration and if it is the only flag, the
     // vnode should not be considered dynamic due to handler caching.
-    vnode.patchFlag !== PatchFlags.NEED_HYDRATION
+    vnode.patchFlag !== PatchFlags.HYDRATE_EVENTS
   ) {
     currentBlock.push(vnode)
   }
@@ -507,6 +507,7 @@ export const createVNode = (
   __DEV__ ? createVNodeWithArgsTransform : _createVNode
 ) as typeof _createVNode
 
+// DC: 创建VNode
 function _createVNode(
   type: VNodeTypes | ClassComponent | typeof NULL_DYNAMIC_COMPONENT,
   props: (Data & VNodeProps) | null = null,
@@ -585,8 +586,8 @@ function _createVNode(
   if (__DEV__ && shapeFlag & ShapeFlags.STATEFUL_COMPONENT && isProxy(type)) {
     type = toRaw(type)
     warn(
-      `Vue received a Component that was made a reactive object. This can ` +
-        `lead to unnecessary performance overhead and should be avoided by ` +
+      `Vue received a Component which was made a reactive object. This can ` +
+        `lead to unnecessary performance overhead, and should be avoided by ` +
         `marking the component with \`markRaw\` or using \`shallowRef\` ` +
         `instead of \`ref\`.`,
       `\nComponent that was made reactive: `,

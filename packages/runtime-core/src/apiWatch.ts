@@ -204,10 +204,11 @@ function doWatch(
   let getter: () => any
   let forceTrigger = false
   let isMultiSource = false
-
+  // DC: 标准化 source 
   if (isRef(source)) {
     getter = () => source.value
     forceTrigger = isShallow(source)
+    // DC: 当监听的是一个 reactive 的时候，默认 deep 为 true
   } else if (isReactive(source)) {
     getter = () => source
     deep = true
@@ -233,6 +234,7 @@ function doWatch(
         callWithErrorHandling(source, instance, ErrorCodes.WATCH_GETTER)
     } else {
       // no cb -> simple effect
+      // DC: 封装 waicthEffect 传入的 cb 函数
       getter = () => {
         if (instance && instance.isUnmounted) {
           return
@@ -244,7 +246,7 @@ function doWatch(
           source,
           instance,
           ErrorCodes.WATCH_CALLBACK,
-          [onCleanup]
+          [onCleanup] // 
         )
       }
     }
@@ -267,17 +269,19 @@ function doWatch(
       return val
     }
   }
-
+  // DC: 如果 deep 为 true，则监听每一个子属性
   if (cb && deep) {
     const baseGetter = getter
     getter = () => traverse(baseGetter())
   }
 
-  let cleanup: (() => void) | undefined
+  let cleanup: () => void
+  // DC: 这里就是传给 watchEffect 的回调函数，可以在这里
+  // 传入一个参数，用于在 watch 的 id 改变，或者watch 停止的时候，
+  // 清除当前的异步操作
   let onCleanup: OnCleanup = (fn: () => void) => {
     cleanup = effect.onStop = () => {
       callWithErrorHandling(fn, instance, ErrorCodes.WATCH_CLEANUP)
-      cleanup = effect.onStop = undefined
     }
   }
 
@@ -288,7 +292,9 @@ function doWatch(
     // we will also not call the invalidate callback (+ runner is not set up)
     onCleanup = NOOP
     if (!cb) {
+      // DC: 这里就是 wacthEffect 函数的时候，立即执行传入的回调函数
       getter()
+      // DC: 立即执行
     } else if (immediate) {
       callWithAsyncErrorHandling(cb, instance, ErrorCodes.WATCH_CALLBACK, [
         getter(),
@@ -319,7 +325,7 @@ function doWatch(
         forceTrigger ||
         (isMultiSource
           ? (newValue as any[]).some((v, i) => hasChanged(v, oldValue[i]))
-          : hasChanged(newValue, oldValue)) ||
+          : hasChanged(newValue, oldValue)) || // DC: 判断新旧值是否有变化
         (__COMPAT__ &&
           isArray(newValue) &&
           isCompatEnabled(DeprecationTypes.WATCH_ARRAY, instance))
@@ -328,6 +334,7 @@ function doWatch(
         if (cleanup) {
           cleanup()
         }
+        // DC: 执行回调函数，
         callWithAsyncErrorHandling(cb, instance, ErrorCodes.WATCH_CALLBACK, [
           newValue,
           // pass undefined as the old value when it's changed for the first time
@@ -349,19 +356,19 @@ function doWatch(
   // important: mark the job as a watcher callback so that scheduler knows
   // it is allowed to self-trigger (#1727)
   job.allowRecurse = !!cb
-
+  // DC: 创建 scheduler 时序执行函数
   let scheduler: EffectScheduler
-  if (flush === 'sync') {
+  if (flush === 'sync') { // DC: 数据变化时同步执行
     scheduler = job as any // the scheduler function gets called directly
-  } else if (flush === 'post') {
+  } else if (flush === 'post') { // DC: 在组件更新之后执行
     scheduler = () => queuePostRenderEffect(job, instance && instance.suspense)
   } else {
     // default: 'pre'
     job.pre = true
     if (instance) job.id = instance.uid
-    scheduler = () => queueJob(job)
+    scheduler = () => queueJob(job) // DC: 放在了 queueJob 里面，在组件更新、挂载之前执行
   }
-
+  // DC: 创建副作用函数
   const effect = new ReactiveEffect(getter, scheduler)
 
   if (__DEV__) {
@@ -393,6 +400,7 @@ function doWatch(
   }
 
   if (__SSR__ && ssrCleanup) ssrCleanup.push(unwatch)
+  // DC: 返回侦听器销毁函数
   return unwatch
 }
 

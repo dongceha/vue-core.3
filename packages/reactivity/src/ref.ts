@@ -1,4 +1,3 @@
-import type { ComputedRef } from './computed'
 import {
   activeEffect,
   getDepFromReactive,
@@ -116,8 +115,9 @@ export type ShallowRef<T = any> = Ref<T> & { [ShallowRefMarker]?: true }
  * @param value - The "inner value" for the shallow ref.
  * @see {@link https://vuejs.org/api/reactivity-advanced.html#shallowref}
  */
-export function shallowRef<T>(value: MaybeRef<T>): Ref<T> | ShallowRef<T>
-export function shallowRef<T extends Ref>(value: T): T
+export function shallowRef<T extends object>(
+  value: T
+): T extends Ref ? T : ShallowRef<T>
 export function shallowRef<T>(value: T): ShallowRef<T>
 export function shallowRef<T = any>(): ShallowRef<T | undefined>
 export function shallowRef(value?: unknown) {
@@ -138,11 +138,9 @@ class RefImpl<T> {
   public dep?: Dep = undefined
   public readonly __v_isRef = true
 
-  constructor(
-    value: T,
-    public readonly __v_isShallow: boolean
-  ) {
+  constructor(value: T, public readonly __v_isShallow: boolean) {
     this._rawValue = __v_isShallow ? value : toRaw(value)
+    // DC: 当 shallow 传入为 true ，返回 普通的 value，否则用  toReactive 包裹一层
     this._value = __v_isShallow ? value : toReactive(value)
   }
 
@@ -211,7 +209,7 @@ export type MaybeRefOrGetter<T = any> = MaybeRef<T> | (() => T)
  * @param ref - Ref or plain value to be converted into the plain value.
  * @see {@link https://vuejs.org/api/reactivity-utilities.html#unref}
  */
-export function unref<T>(ref: MaybeRef<T> | ComputedRef<T>): T {
+export function unref<T>(ref: MaybeRef<T>): T {
   return isRef(ref) ? ref.value : ref
 }
 
@@ -231,7 +229,7 @@ export function unref<T>(ref: MaybeRef<T> | ComputedRef<T>): T {
  * @param source - A getter, an existing ref, or a non-function value.
  * @see {@link https://vuejs.org/api/reactivity-utilities.html#tovalue}
  */
-export function toValue<T>(source: MaybeRefOrGetter<T> | ComputedRef<T>): T {
+export function toValue<T>(source: MaybeRefOrGetter<T>): T {
   return isFunction(source) ? source() : unref(source)
 }
 
@@ -349,6 +347,7 @@ class ObjectRefImpl<T extends object, K extends keyof T> {
   }
 
   set value(newVal) {
+    // DC: 也很简单，就是个 对应的数据做了一个劫持
     this._object[this._key] = newVal
   }
 

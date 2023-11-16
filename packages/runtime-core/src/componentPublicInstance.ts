@@ -15,8 +15,7 @@ import {
   isString,
   isFunction,
   UnionToIntersection,
-  Prettify,
-  IfAny
+  Prettify
 } from '@vue/shared'
 import {
   toRaw,
@@ -188,6 +187,7 @@ export type CreateComponentPublicInstance<
   I,
   S
 >
+
 // public properties exposed on the proxy, which is used as the render context
 // in templates (as `this` in the render option)
 export type ComponentPublicInstance<
@@ -206,9 +206,11 @@ export type ComponentPublicInstance<
 > = {
   $: ComponentInternalInstance
   $data: D
-  $props: MakeDefaultsOptional extends true
-    ? Partial<Defaults> & Omit<Prettify<P> & PublicProps, keyof Defaults>
-    : Prettify<P> & PublicProps
+  $props: Prettify<
+    MakeDefaultsOptional extends true
+      ? Partial<Defaults> & Omit<P & PublicProps, keyof Defaults>
+      : P & PublicProps
+  >
   $attrs: Data
   $refs: Data
   $slots: UnwrapSlotsType<S>
@@ -226,7 +228,7 @@ export type ComponentPublicInstance<
       : (...args: any) => any,
     options?: WatchOptions
   ): WatchStopHandle
-} & IfAny<P, P, Omit<P, keyof ShallowUnwrapRef<B>>> &
+} & P &
   ShallowUnwrapRef<B> &
   UnwrapNestedRefs<D> &
   ExtractComputedReturns<C> &
@@ -295,6 +297,7 @@ const hasSetupBinding = (state: Data, key: string) =>
   state !== EMPTY_OBJ && !state.__isScriptSetup && hasOwn(state, key)
 
 export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
+  // DC: get 函数
   get({ _: instance }: ComponentRenderContext, key: string) {
     const { ctx, setupState, data, props, accessCache, type, appContext } =
       instance
@@ -312,7 +315,9 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
     // prototype) to memoize what access type a key corresponds to.
     let normalizedProps
     if (key[0] !== '$') {
+      // DC: 渲染代理的属性访问缓存中 -- 避免 使用 hasOwn
       const n = accessCache![key]
+      // DC: 从缓存中取
       if (n !== undefined) {
         switch (n) {
           case AccessTypes.SETUP:
@@ -325,11 +330,14 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
             return props![key]
           // default: just fallthrough
         }
+        // DC: 所以 如果 data 和 setup 同时定义了同一个属性，会优先使用 setup 返回的数据
       } else if (hasSetupBinding(setupState, key)) {
         accessCache![key] = AccessTypes.SETUP
+        // DC: 从 setState 中获取数据
         return setupState[key]
       } else if (data !== EMPTY_OBJ && hasOwn(data, key)) {
         accessCache![key] = AccessTypes.DATA
+        // DC: 从data中获取数据
         return data[key]
       } else if (
         // only cache other properties when instance has declared (thus stable)
@@ -341,8 +349,10 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
         return props![key]
       } else if (ctx !== EMPTY_OBJ && hasOwn(ctx, key)) {
         accessCache![key] = AccessTypes.CONTEXT
+        // DC: 从 ctx 中取数据
         return ctx[key]
       } else if (!__FEATURE_OPTIONS_API__ || shouldCacheAccess) {
+        // DC: 啥都取不到
         accessCache![key] = AccessTypes.OTHER
       }
     }
@@ -350,6 +360,7 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
     const publicGetter = publicPropertiesMap[key]
     let cssModule, globalProperties
     // public $xxx properties
+    // DC: 公开的$xxx属性或方法
     if (publicGetter) {
       if (key === '$attrs') {
         track(instance, TrackOpTypes.GET, key)
@@ -359,6 +370,7 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
       }
       return publicGetter(instance)
     } else if (
+      // DC: css 模块，通过 vue-loader 编译的时候注入
       // css module (injected by vue-loader)
       (cssModule = type.__cssModules) &&
       (cssModule = cssModule[key])
@@ -366,10 +378,12 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
       return cssModule
     } else if (ctx !== EMPTY_OBJ && hasOwn(ctx, key)) {
       // user may set custom properties to `this` that start with `$`
+      // DC: 用户的自定义熟悉，也用 $ 开头
       accessCache![key] = AccessTypes.CONTEXT
       return ctx[key]
     } else if (
       // global properties
+      // DC: 定义全局属性
       ((globalProperties = appContext.config.globalProperties),
       hasOwn(globalProperties, key))
     ) {
@@ -395,12 +409,14 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
         key.indexOf('__v') !== 0)
     ) {
       if (data !== EMPTY_OBJ && isReservedPrefix(key[0]) && hasOwn(data, key)) {
+        // DC: $ 或者 _ 开头的字段是保留字符，不会做代理
         warn(
           `Property ${JSON.stringify(
             key
           )} must be accessed via $data because it starts with a reserved ` +
             `character ("$" or "_") and is not proxied on the render context.`
         )
+        // DC: 在模板中使用的变量如果没有定义，报警告
       } else if (instance === currentRenderingInstance) {
         warn(
           `Property ${JSON.stringify(key)} was accessed during render ` +
@@ -409,7 +425,7 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
       }
     }
   },
-
+  // DC: set 函数的实现
   set(
     { _: instance }: ComponentRenderContext,
     key: string,
@@ -417,6 +433,7 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
   ): boolean {
     const { data, setupState, ctx } = instance
     if (hasSetupBinding(setupState, key)) {
+      // DC: 给 setupState 赋值
       setupState[key] = value
       return true
     } else if (
@@ -427,6 +444,7 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
       warn(`Cannot mutate <script setup> binding "${key}" from Options API.`)
       return false
     } else if (data !== EMPTY_OBJ && hasOwn(data, key)) {
+      // DC: 给 data 赋值
       data[key] = value
       return true
     } else if (hasOwn(instance.props, key)) {
@@ -462,6 +480,7 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
   ) {
     let normalizedProps
     return (
+      // DC: 依次判断
       !!accessCache![key] ||
       (data !== EMPTY_OBJ && hasOwn(data, key)) ||
       hasSetupBinding(setupState, key) ||

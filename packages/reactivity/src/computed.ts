@@ -31,7 +31,7 @@ export class ComputedRefImpl<T> {
 
   public readonly __v_isRef = true
   public readonly [ReactiveFlags.IS_READONLY]: boolean = false
-
+  // DC: 是否是可以执行
   public _dirty = true
   public _cacheable: boolean
 
@@ -41,9 +41,12 @@ export class ComputedRefImpl<T> {
     isReadonly: boolean,
     isSSR: boolean
   ) {
+    // DC: 调用 getter 的时候，会把 回调函数作为 effect 的 scheduler 注入
+    // DC: 当 trigger 的时候，会优先执行 scheduler 函数
     this.effect = new ReactiveEffect(getter, () => {
       if (!this._dirty) {
         this._dirty = true
+        // DC: 派发通知，告诉依赖了这个 computed  的人重新执行
         triggerRefValue(this)
       }
     })
@@ -55,7 +58,13 @@ export class ComputedRefImpl<T> {
   get value() {
     // the computed ref may get wrapped by other proxies e.g. readonly() #3376
     const self = toRaw(this)
+    // DC: 做依赖收集
     trackRefValue(self)
+    // DC: 数据是脏的，就重新执行
+    // DC: 第一次执行默认是脏数据，可以执行 run
+    // DC: 这个时候，把当前 的 effect 赋值给了 activeEffect，被内部执行 getter 的 数据收集
+    // DC: 内部的变量变化之后，优先执行上文描述的 scheduler
+    // DC: 数据就又变成脏数据，可以继续 run 了
     if (self._dirty || !self._cacheable) {
       self._dirty = false
       self._value = self.effect.run()!
@@ -114,7 +123,9 @@ export function computed<T>(
   debugOptions?: DebuggerOptions,
   isSSR = false
 ) {
+  // DC: 标准化 getter 参数
   let getter: ComputedGetter<T>
+  // DC: 标准化 setter 参数
   let setter: ComputedSetter<T>
 
   const onlyGetter = isFunction(getterOrOptions)

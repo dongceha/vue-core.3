@@ -72,7 +72,6 @@ import { initFeatureFlags } from './featureFlags'
 import { isAsyncWrapper } from './apiAsyncComponent'
 import { isCompatEnabled } from './compat/compatConfig'
 import { DeprecationTypes } from './compat/compatConfig'
-import { TransitionHooks } from './components/BaseTransition'
 
 export interface Renderer<HostElement = RendererElement> {
   render: RootRenderFunction<HostElement>
@@ -355,10 +354,11 @@ function baseCreateRenderer(
 
   // Note: functions inside this closure should use `const xxx = () => {}`
   // style in order to prevent being inlined by minifiers.
+  // DC: 打补丁，也就是 diff 的入口
   const patch: PatchFn = (
-    n1,
-    n2,
-    container,
+    n1, // 旧的 vnode，当为 null 时为第一次挂载
+    n2, // 新的 vnode 
+    container, // 容器
     anchor = null,
     parentComponent = null,
     parentSuspense = null,
@@ -371,9 +371,11 @@ function baseCreateRenderer(
     }
 
     // patching & not same type, unmount old tree
+    // DC: 判断是否是相同的节点类型
     if (n1 && !isSameVNodeType(n1, n2)) {
       anchor = getNextHostNode(n1)
       unmount(n1, parentComponent, parentSuspense, true)
+      //  DC: n1 设置为 null，保证所有逻辑都走 mount 逻辑
       n1 = null
     }
 
@@ -384,20 +386,20 @@ function baseCreateRenderer(
 
     const { type, ref, shapeFlag } = n2
     switch (type) {
-      case Text:
+      case Text: // 文本
         processText(n1, n2, container, anchor)
         break
-      case Comment:
+      case Comment: // 注释
         processCommentNode(n1, n2, container, anchor)
         break
-      case Static:
+      case Static: // 静态
         if (n1 == null) {
           mountStaticNode(n2, container, anchor, isSVG)
         } else if (__DEV__) {
           patchStaticNode(n1, n2, container, isSVG)
         }
         break
-      case Fragment:
+      case Fragment: 
         processFragment(
           n1,
           n2,
@@ -412,6 +414,7 @@ function baseCreateRenderer(
         break
       default:
         if (shapeFlag & ShapeFlags.ELEMENT) {
+          // DC: 处理普通元素
           processElement(
             n1,
             n2,
@@ -424,6 +427,7 @@ function baseCreateRenderer(
             optimized
           )
         } else if (shapeFlag & ShapeFlags.COMPONENT) {
+          // DC: 处理组件
           processComponent(
             n1,
             n2,
@@ -573,7 +577,7 @@ function baseCreateRenderer(
     }
     hostRemove(anchor!)
   }
-
+  // DC: 处理普通元素
   const processElement = (
     n1: VNode | null,
     n2: VNode,
@@ -587,6 +591,7 @@ function baseCreateRenderer(
   ) => {
     isSVG = isSVG || n2.type === 'svg'
     if (n1 == null) {
+      // DC: 挂载元素节点
       mountElement(
         n2,
         container,
@@ -598,6 +603,7 @@ function baseCreateRenderer(
         optimized
       )
     } else {
+      // DC: 更新元素节点
       patchElement(
         n1,
         n2,
@@ -609,7 +615,7 @@ function baseCreateRenderer(
       )
     }
   }
-
+  // DC: 挂载元素
   const mountElement = (
     vnode: VNode,
     container: RendererElement,
@@ -633,10 +639,10 @@ function baseCreateRenderer(
 
     // mount children first, since some props may rely on child content
     // being already rendered, e.g. `<select value>`
-    if (shapeFlag & ShapeFlags.TEXT_CHILDREN) {
+    if (shapeFlag & ShapeFlags.TEXT_CHILDREN) { // DC: 纯文本
       hostSetElementText(el, vnode.children as string)
     } else if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
-      mountChildren(
+      mountChildren( // DC: 子节点是数组
         vnode.children as VNodeArrayChildren,
         el,
         null,
@@ -702,7 +708,10 @@ function baseCreateRenderer(
     }
     // #1583 For inside suspense + suspense not resolved case, enter hook should call when suspense resolved
     // #1689 For inside suspense + suspense resolved case, just call it
-    const needCallTransitionHooks = needTransition(parentSuspense, transition)
+    const needCallTransitionHooks =
+      (!parentSuspense || (parentSuspense && !parentSuspense.pendingBranch)) &&
+      transition &&
+      !transition.persisted
     if (needCallTransitionHooks) {
       transition!.beforeEnter(el)
     }
@@ -757,7 +766,7 @@ function baseCreateRenderer(
       }
     }
   }
-
+  // DC: 处理 数组子节点
   const mountChildren: MountChildrenFn = (
     children,
     container,
@@ -773,6 +782,7 @@ function baseCreateRenderer(
       const child = (children[i] = optimized
         ? cloneIfMounted(children[i] as VNode)
         : normalizeVNode(children[i]))
+        // DC: 递归patch子节点--深度优先
       patch(
         null,
         child,
@@ -838,6 +848,7 @@ function baseCreateRenderer(
         traverseStaticChildren(n1, n2)
       }
     } else if (!optimized) {
+      // DC: 更新子节点
       // full diff
       patchChildren(
         n1,
@@ -859,6 +870,7 @@ function baseCreateRenderer(
       // (i.e. at the exact same position in the source template)
       if (patchFlag & PatchFlags.FULL_PROPS) {
         // element props contain dynamic keys, full diff needed
+        // DC: 更新 props
         patchProps(
           el,
           n2,
@@ -1141,7 +1153,7 @@ function baseCreateRenderer(
       }
     }
   }
-
+  // DC: 渲染组件
   const processComponent = (
     n1: VNode | null,
     n2: VNode,
@@ -1164,6 +1176,7 @@ function baseCreateRenderer(
           optimized
         )
       } else {
+        //  DC: 挂载组件
         mountComponent(
           n2,
           container,
@@ -1175,10 +1188,11 @@ function baseCreateRenderer(
         )
       }
     } else {
+      // DC: 更新组件
       updateComponent(n1, n2, optimized)
     }
   }
-
+  // 挂载组件
   const mountComponent: MountComponentFn = (
     initialVNode,
     container,
@@ -1194,7 +1208,7 @@ function baseCreateRenderer(
       __COMPAT__ && initialVNode.isCompatRoot && initialVNode.component
     const instance: ComponentInternalInstance =
       compatMountInstance ||
-      (initialVNode.component = createComponentInstance(
+      (initialVNode.component = createComponentInstance( // DC: 创建组件实例
         initialVNode,
         parentComponent,
         parentSuspense
@@ -1219,6 +1233,7 @@ function baseCreateRenderer(
       if (__DEV__) {
         startMeasure(instance, `init`)
       }
+      // DC: 设置组件实例，给 instance 维护 props 插槽等
       setupComponent(instance)
       if (__DEV__) {
         endMeasure(instance, `init`)
@@ -1238,7 +1253,7 @@ function baseCreateRenderer(
       }
       return
     }
-
+    // DC: 设置并运行带副作用的渲染函数
     setupRenderEffect(
       instance,
       initialVNode,
@@ -1254,10 +1269,10 @@ function baseCreateRenderer(
       endMeasure(instance, `mount`)
     }
   }
-
+  // DC: 更新节点
   const updateComponent = (n1: VNode, n2: VNode, optimized: boolean) => {
     const instance = (n2.component = n1.component)!
-    if (shouldUpdateComponent(n1, n2, optimized)) {
+    if (shouldUpdateComponent(n1, n2, optimized)) { // DC: 对比 props 等属性  决定是否更新
       if (
         __FEATURE_SUSPENSE__ &&
         instance.asyncDep &&
@@ -1278,17 +1293,20 @@ function baseCreateRenderer(
         instance.next = n2
         // in case the child component is also queued, remove it to avoid
         // double updating the same child component in the same flush.
+        // DC: 子组件也可能因为数据变化被添加到更新队列里了，移除他们防止对一个子组件重复更新
         invalidateJob(instance.update)
         // instance.update is the reactive effect.
+        // DC: 执行子组件的副作用渲染函数
         instance.update()
       }
     } else {
       // no update needed. just copy over properties
+      // DC: 不需要更新
       n2.el = n1.el
       instance.vnode = n2
     }
   }
-
+  // DC: 运行带有副作用的组件函数
   const setupRenderEffect: SetupRenderEffectFn = (
     instance,
     initialVNode,
@@ -1306,11 +1324,11 @@ function baseCreateRenderer(
         const isAsyncWrapperVNode = isAsyncWrapper(initialVNode)
 
         toggleRecurse(instance, false)
-        // beforeMount hook
+        // DC: beforeMount hook
         if (bm) {
           invokeArrayFns(bm)
         }
-        // onVnodeBeforeMount
+        // DC: onVnodeBeforeMount
         if (
           !isAsyncWrapperVNode &&
           (vnodeHook = props && props.onVnodeBeforeMount)
@@ -1324,7 +1342,7 @@ function baseCreateRenderer(
           instance.emit('hook:beforeMount')
         }
         toggleRecurse(instance, true)
-
+        // DC: 渲染组件
         if (el && hydrateNode) {
           // vnode has adopted host node - perform hydration instead of mount.
           const hydrateSubTree = () => {
@@ -1365,6 +1383,7 @@ function baseCreateRenderer(
           if (__DEV__) {
             startMeasure(instance, `render`)
           }
+          // DC: 渲染组件生成子树 vnode 
           const subTree = (instance.subTree = renderComponentRoot(instance))
           if (__DEV__) {
             endMeasure(instance, `render`)
@@ -1384,9 +1403,10 @@ function baseCreateRenderer(
           if (__DEV__) {
             endMeasure(instance, `patch`)
           }
+          // DC: 保留渲染生成的子树根DOM节点
           initialVNode.el = subTree.el
         }
-        // mounted hook
+        // DC: mounted hook
         if (m) {
           queuePostRenderEffect(m, parentSuspense)
         }
@@ -1452,18 +1472,21 @@ function baseCreateRenderer(
 
         // Disallow component effect recursion during pre-lifecycle hooks.
         toggleRecurse(instance, false)
+        // DC: 更新组件
+        // DC: next 为新的组件 vnode
         if (next) {
           next.el = vnode.el
+          // DC: 更新组件 vnode 信息
           updateComponentPreRender(instance, next, optimized)
         } else {
           next = vnode
         }
 
-        // beforeUpdate hook
+        // DC: beforeUpdate hook
         if (bu) {
           invokeArrayFns(bu)
         }
-        // onVnodeBeforeUpdate
+        // DC: onVnodeBeforeUpdate
         if ((vnodeHook = next.props && next.props.onVnodeBeforeUpdate)) {
           invokeVNodeHook(vnodeHook, parent, next, vnode)
         }
@@ -1479,11 +1502,14 @@ function baseCreateRenderer(
         if (__DEV__) {
           startMeasure(instance, `render`)
         }
+        // DC: 渲染新的 子树 vnode 
         const nextTree = renderComponentRoot(instance)
         if (__DEV__) {
           endMeasure(instance, `render`)
         }
+        // DC: 缓存旧的子树vnode
         const prevTree = instance.subTree
+        // DC: 更新的子树vnode
         instance.subTree = nextTree
 
         if (__DEV__) {
@@ -1510,7 +1536,7 @@ function baseCreateRenderer(
           // to child component's vnode
           updateHOCHostEl(instance, nextTree.el)
         }
-        // updated hook
+        // DC: updated hook
         if (u) {
           queuePostRenderEffect(u, parentSuspense)
         }
@@ -1547,7 +1573,7 @@ function baseCreateRenderer(
       () => queueJob(update),
       instance.scope // track it in component's effect scope
     ))
-
+    // DC: 创建响应式的副作用渲染函数
     const update: SchedulerJob = (instance.update = () => effect.run())
     update.id = instance.uid
     // allowRecurse
@@ -1566,17 +1592,22 @@ function baseCreateRenderer(
 
     update()
   }
-
+  // DC: 更新节点的信息
   const updateComponentPreRender = (
     instance: ComponentInternalInstance,
     nextVNode: VNode,
     optimized: boolean
   ) => {
     nextVNode.component = instance
+    // 旧组件vnode的props属性
     const prevProps = instance.vnode.props
+    // 组件实例的vnode属性指向新的 vnode
     instance.vnode = nextVNode
+    // 清空next属性，为下一次渲染做准备
     instance.next = null
+    // 更新props
     updateProps(instance, nextVNode.props, prevProps, optimized)
+    // 更新插槽
     updateSlots(instance, nextVNode.children, optimized)
 
     pauseTracking()
@@ -1585,7 +1616,7 @@ function baseCreateRenderer(
     flushPreFlushCbs()
     resetTracking()
   }
-
+  // DC: 开始 diff 了！！！
   const patchChildren: PatchChildrenFn = (
     n1,
     n2,
@@ -1637,7 +1668,7 @@ function baseCreateRenderer(
     }
 
     // children has 3 possibilities: text, array or no children.
-    if (shapeFlag & ShapeFlags.TEXT_CHILDREN) {
+    if (shapeFlag & ShapeFlags.TEXT_CHILDREN) { // DC: 纯文本
       // text children fast path
       if (prevShapeFlag & ShapeFlags.ARRAY_CHILDREN) {
         unmountChildren(c1 as VNode[], parentComponent, parentSuspense)
@@ -1646,10 +1677,11 @@ function baseCreateRenderer(
         hostSetElementText(container, c2 as string)
       }
     } else {
-      if (prevShapeFlag & ShapeFlags.ARRAY_CHILDREN) {
+      if (prevShapeFlag & ShapeFlags.ARRAY_CHILDREN) { // DC: 数组
         // prev children was array
         if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
           // two arrays, cannot assume anything, do full diff
+          // DC: 就做一个完整的 diff 过程
           patchKeyedChildren(
             c1 as VNode[],
             c2 as VNodeArrayChildren,
@@ -1662,6 +1694,7 @@ function baseCreateRenderer(
             optimized
           )
         } else {
+          // DC: 空
           // no new children, just unmount old
           unmountChildren(c1 as VNode[], parentComponent, parentSuspense, true)
         }
@@ -1748,6 +1781,7 @@ function baseCreateRenderer(
   }
 
   // can be all-keyed or mixed
+  // DC: diff 算法入口
   const patchKeyedChildren = (
     c1: VNode[],
     c2: VNodeArrayChildren,
@@ -1761,17 +1795,21 @@ function baseCreateRenderer(
   ) => {
     let i = 0
     const l2 = c2.length
+    // DC: 旧子节点的尾部索引
     let e1 = c1.length - 1 // prev ending index
+    // DC: 新子节点的尾部索引
     let e2 = l2 - 1 // next ending index
 
     // 1. sync from start
     // (a b) c
     // (a b) d e
+    // DC: 从头部开始移动
     while (i <= e1 && i <= e2) {
       const n1 = c1[i]
       const n2 = (c2[i] = optimized
         ? cloneIfMounted(c2[i] as VNode)
         : normalizeVNode(c2[i]))
+        // DC: 相同的节点，低估一致性 patch 更新节点
       if (isSameVNodeType(n1, n2)) {
         patch(
           n1,
@@ -1785,7 +1823,7 @@ function baseCreateRenderer(
           optimized
         )
       } else {
-        break
+        break // DC: 遇到不同的节点就停止
       }
       i++
     }
@@ -1793,6 +1831,7 @@ function baseCreateRenderer(
     // 2. sync from end
     // a (b c)
     // d e (b c)
+    // DC: 从尾部开始移动
     while (i <= e1 && i <= e2) {
       const n1 = c1[e1]
       const n2 = (c2[e2] = optimized
@@ -1811,7 +1850,7 @@ function baseCreateRenderer(
           optimized
         )
       } else {
-        break
+        break // DC: 遇到不同的节点就停止
       }
       e1--
       e2--
@@ -1824,6 +1863,7 @@ function baseCreateRenderer(
     // (a b)
     // c (a b)
     // i = 0, e1 = -1, e2 = 0
+    // DC: 挂载剩余的新节点
     if (i > e1) {
       if (i <= e2) {
         const nextPos = e2 + 1
@@ -1854,6 +1894,7 @@ function baseCreateRenderer(
     // a (b c)
     // (b c)
     // i = 0, e1 = 0, e2 = -1
+    // DC: 普通序列删除多余的旧节点
     else if (i > e2) {
       while (i <= e1) {
         unmount(c1[i], parentComponent, parentSuspense, true)
@@ -1870,6 +1911,7 @@ function baseCreateRenderer(
       const s2 = i // next starting index
 
       // 5.1 build key:index map for newChildren
+      // DC: 根据key创建新子节点的索引图
       const keyToNewIndexMap: Map<string | number | symbol, number> = new Map()
       for (i = s2; i <= e2; i++) {
         const nextChild = (c2[i] = optimized
@@ -1894,24 +1936,30 @@ function baseCreateRenderer(
       const toBePatched = e2 - s2 + 1
       let moved = false
       // used to track whether any node has moved
+      // DC: 用于跟踪判断是否有节点移动
       let maxNewIndexSoFar = 0
       // works as Map<newIndex, oldIndex>
       // Note that oldIndex is offset by +1
       // and oldIndex = 0 is a special value indicating the new node has
       // no corresponding old node.
       // used for determining longest stable subsequence
+      // DC: 这个数组存储新子序列中的元素在旧子序列节点的索引，用于确定最长递增子序列
       const newIndexToOldIndexMap = new Array(toBePatched)
+      // DC: 0 是一个特殊的占位符，如果遍历完了任有元素的值为0，则说明这个新节点没有对应的旧节点
       for (i = 0; i < toBePatched; i++) newIndexToOldIndexMap[i] = 0
 
+      // DC: 正序遍历旧子序列
       for (i = s1; i <= e1; i++) {
         const prevChild = c1[i]
         if (patched >= toBePatched) {
+          // DC: 所有的子序列节点都已经更新，删除的节点删除
           // all new children have been patched so this can only be a removal
           unmount(prevChild, parentComponent, parentSuspense, true)
           continue
         }
         let newIndex
         if (prevChild.key != null) {
+          // DC: 查找旧子序列中的节点在新子序列中的索引
           newIndex = keyToNewIndexMap.get(prevChild.key)
         } else {
           // key-less node, try to locate a key-less node of the same type
@@ -1925,10 +1973,13 @@ function baseCreateRenderer(
             }
           }
         }
+        // DC: 找不到说明旧子序列已经不存在于新子序列中，则删除
         if (newIndex === undefined) {
           unmount(prevChild, parentComponent, parentSuspense, true)
         } else {
+          // DC: 更新新子序列中的元素在旧子序列中的索引，+1是为了避免 i 为 0的特殊情况
           newIndexToOldIndexMap[newIndex - s2] = i + 1
+          // DC: maxNewIndexSoFar 存储的是重视上次求职的 newIndex，如果不是一直递增，则说明有移动
           if (newIndex >= maxNewIndexSoFar) {
             maxNewIndexSoFar = newIndex
           } else {
@@ -1956,13 +2007,16 @@ function baseCreateRenderer(
         : EMPTY_ARR
       j = increasingNewIndexSequence.length - 1
       // looping backwards so that we can use last patched node as anchor
+      // DC: 倒序遍历以便我们可以使用最后更新的节点作为锚点
       for (i = toBePatched - 1; i >= 0; i--) {
         const nextIndex = s2 + i
         const nextChild = c2[nextIndex] as VNode
+        // DC: 锚点指向上一个更新的节点
         const anchor =
           nextIndex + 1 < l2 ? (c2[nextIndex + 1] as VNode).el : parentAnchor
         if (newIndexToOldIndexMap[i] === 0) {
           // mount new
+          // DC: 挂载新节点
           patch(
             null,
             nextChild,
@@ -1978,6 +2032,7 @@ function baseCreateRenderer(
           // move if:
           // There is no stable subsequence (e.g. a reverse)
           // OR current node is not among the stable sequence
+          // DC: 没有最长递增子序列，或者当前的节点索引不在最长递增子序列中，需要移动
           if (j < 0 || i !== increasingNewIndexSequence[j]) {
             move(nextChild, container, anchor, MoveType.REORDER)
           } else {
@@ -2314,13 +2369,15 @@ function baseCreateRenderer(
     }
     return hostNextSibling((vnode.anchor || vnode.el)!)
   }
-
+  // DC: 渲染创建好的 vnode 
   const render: RootRenderFunction = (vnode, container, isSVG) => {
     if (vnode == null) {
+      // DC: 销毁组件
       if (container._vnode) {
         unmount(container._vnode, null, null, true)
       }
     } else {
+      // DC: 创建或者更新组件
       patch(container._vnode || null, vnode, container, null, null, null, isSVG)
     }
     flushPreFlushCbs()
@@ -2363,17 +2420,6 @@ function toggleRecurse(
   effect.allowRecurse = update.allowRecurse = allowed
 }
 
-export function needTransition(
-  parentSuspense: SuspenseBoundary | null,
-  transition: TransitionHooks | null
-) {
-  return (
-    (!parentSuspense || (parentSuspense && !parentSuspense.pendingBranch)) &&
-    transition &&
-    !transition.persisted
-  )
-}
-
 /**
  * #1156
  * When a component is HMR-enabled, we need to make sure that all static nodes
@@ -2395,7 +2441,7 @@ export function traverseStaticChildren(n1: VNode, n2: VNode, shallow = false) {
       const c1 = ch1[i] as VNode
       let c2 = ch2[i] as VNode
       if (c2.shapeFlag & ShapeFlags.ELEMENT && !c2.dynamicChildren) {
-        if (c2.patchFlag <= 0 || c2.patchFlag === PatchFlags.NEED_HYDRATION) {
+        if (c2.patchFlag <= 0 || c2.patchFlag === PatchFlags.HYDRATE_EVENTS) {
           c2 = ch2[i] = cloneIfMounted(ch2[i] as VNode)
           c2.el = c1.el
         }

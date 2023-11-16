@@ -13,7 +13,7 @@ import { DebuggerEvent, pauseTracking, resetTracking } from '@vue/reactivity'
 import { LifecycleHooks } from './enums'
 
 export { onActivated, onDeactivated } from './components/KeepAlive'
-
+// DC: 封装的 生命周期函数
 export function injectHook(
   type: LifecycleHooks,
   hook: Function & { __weh?: Function },
@@ -21,6 +21,7 @@ export function injectHook(
   prepend: boolean = false
 ): Function | undefined {
   if (target) {
+    // DC: 将生命周期钩子挂载在当前的实例上
     const hooks = target[type] || (target[type] = [])
     // cache the error handling wrapper for injected hooks so the same hook
     // can be properly deduped by the scheduler. "__weh" stands for "with error

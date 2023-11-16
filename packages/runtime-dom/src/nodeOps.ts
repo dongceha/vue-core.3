@@ -8,6 +8,7 @@ const templateContainer = doc && /*#__PURE__*/ doc.createElement('template')
 
 export const nodeOps: Omit<RendererOptions<Node, Element>, 'patchProp'> = {
   insert: (child, parent, anchor) => {
+    // DC: insertBefore ： 用于插入的节点，将要插在这个节点之前，若为空，则插入子节点的末尾 
     parent.insertBefore(child, anchor || null)
   },
 
@@ -37,7 +38,7 @@ export const nodeOps: Omit<RendererOptions<Node, Element>, 'patchProp'> = {
   setText: (node, text) => {
     node.nodeValue = text
   },
-
+  // DC: 设置文本属性
   setElementText: (el, text) => {
     el.textContent = text
   },

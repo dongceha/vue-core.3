@@ -481,6 +481,7 @@ const emptyAppContext = createAppContext()
 
 let uid = 0
 
+// DC: 初始化了各种属性
 export function createComponentInstance(
   vnode: VNode,
   parent: ComponentInternalInstance | null,
@@ -492,35 +493,54 @@ export function createComponentInstance(
     (parent ? parent.appContext : vnode.appContext) || emptyAppContext
 
   const instance: ComponentInternalInstance = {
+    // 组件唯一 id
     uid: uid++,
+    // 组件 vnode
     vnode,
+    // vnode 节点类型
     type,
+    // 父组件实例
     parent,
     appContext,
+    // 根组件实例
     root: null!, // to be immediately set
+    // 新的组件 vnode
     next: null,
+    // 子节点 vnode
     subTree: null!, // will be set synchronously right after creation
+    // 响应式相关对象
     effect: null!,
+    // 带副作用更新函数
     update: null!, // will be set synchronously right after creation
     scope: new EffectScope(true /* detached */),
+    // 渲染函数
     render: null,
+    // 渲染上下文代理
     proxy: null,
     exposed: null,
     exposeProxy: null,
+    // 带有 with 区块的渲染上下文代理
     withProxy: null,
+    // 依赖注入相关
     provides: parent ? parent.provides : Object.create(appContext.provides),
+    // 渲染代理的属性访问缓存
     accessCache: null!,
+    // 渲染缓存
     renderCache: [],
 
     // local resolved assets
+    // 注册的组件
     components: null,
+    // 注册的指令
     directives: null,
 
     // resolved props and emits options
+    // 在初始化的时候，就标准化了 props（主要用于处理 mixins 和 extends）
     propsOptions: normalizePropsOptions(type, appContext),
     emitsOptions: normalizeEmitsOptions(type, appContext),
 
     // emit
+    // 派发事件方法
     emit: null!, // to be set immediately
     emitted: null,
 
@@ -531,50 +551,80 @@ export function createComponentInstance(
     inheritAttrs: type.inheritAttrs,
 
     // state
+    // 渲染上下文
     ctx: EMPTY_OBJ,
+    // data 数据
     data: EMPTY_OBJ,
+    // props 数据
     props: EMPTY_OBJ,
+    // 普通属性
     attrs: EMPTY_OBJ,
+    // 插槽相关
     slots: EMPTY_OBJ,
+    // 组件或者 DOM 的 ref 引用
     refs: EMPTY_OBJ,
+    // setup 函数返回的响应式结果
     setupState: EMPTY_OBJ,
+    // setup 函数上下文数据
     setupContext: null,
 
     attrsProxy: null,
     slotsProxy: null,
 
     // suspense related
+    // suspense 相关
     suspense,
     suspenseId: suspense ? suspense.pendingId : 0,
+    // suspense 异步依赖
     asyncDep: null,
+    // suspense 异步依赖是否都已处理
     asyncResolved: false,
 
     // lifecycle hooks
     // not using enums here because it results in computed properties
+    // 是否挂载
     isMounted: false,
+    // 是否卸载
     isUnmounted: false,
+    // 是否激活
     isDeactivated: false,
+    // 生命周期，before create
     bc: null,
+    // 生命周期，created
     c: null,
+    // 生命周期，before mount
     bm: null,
+    // 生命周期，mounted
     m: null,
+    // 生命周期，before update
     bu: null,
+    // 生命周期，updated
     u: null,
+    // 生命周期，unmounted
     um: null,
+    // 生命周期，before unmount
     bum: null,
+    // 生命周期, deactivated
     da: null,
+    // 生命周期 activated
     a: null,
+    // 生命周期 render triggered
     rtg: null,
+    // 生命周期 render tracked
     rtc: null,
+    // 生命周期 error captured
     ec: null,
     sp: null
   }
   if (__DEV__) {
     instance.ctx = createDevRenderContext(instance)
   } else {
+    // 初始化渲染上下文
     instance.ctx = { _: instance }
   }
+  // 初始化根组件指针
   instance.root = parent ? parent.root : instance
+  // 初始化派发事件方法
   instance.emit = emit.bind(null, instance)
 
   // apply custom element special handling
@@ -662,10 +712,13 @@ export function setupComponent(
   isInSSRComponentSetup = isSSR
 
   const { props, children } = instance.vnode
+  // DC: 判断是否是一个有状态的组件
   const isStateful = isStatefulComponent(instance)
+  // DC: 初始化 props
   initProps(instance, props, isStateful, isSSR)
+  // DC: 初始化插槽
   initSlots(instance, children)
-
+  // DC: 设置有状态的组件实例
   const setupResult = isStateful
     ? setupStatefulComponent(instance, isSSR)
     : undefined
@@ -703,22 +756,27 @@ function setupStatefulComponent(
       )
     }
   }
+  // DC: 创建渲染代理的属性访问缓存
   // 0. create render proxy property access cache
   instance.accessCache = Object.create(null)
   // 1. create public instance / render proxy
   // also mark it raw so it's never observed
+  // DC: 创建渲染上下文代理
   instance.proxy = markRaw(new Proxy(instance.ctx, PublicInstanceProxyHandlers))
   if (__DEV__) {
     exposePropsOnRenderContext(instance)
   }
   // 2. call setup()
+  // DC: 判断渲染上下文函数
   const { setup } = Component
   if (setup) {
+    // 如果 setup 函数带参数，则创建一个 setupContext
     const setupContext = (instance.setupContext =
       setup.length > 1 ? createSetupContext(instance) : null)
 
     setCurrentInstance(instance)
     pauseTracking()
+    // DC: 执行 setup 函数获取结果
     const setupResult = callWithErrorHandling(
       setup,
       instance,
@@ -727,7 +785,7 @@ function setupStatefulComponent(
     )
     resetTracking()
     unsetCurrentInstance()
-
+    // DC: 竟然还允许返回一个 Promie ~~~~
     if (isPromise(setupResult)) {
       setupResult.then(unsetCurrentInstance, unsetCurrentInstance)
       if (isSSR) {
@@ -759,6 +817,7 @@ function setupStatefulComponent(
         )
       }
     } else {
+      // DC: 处理 setup 函数结果
       handleSetupResult(instance, setupResult, isSSR)
     }
   } else {
@@ -778,6 +837,7 @@ export function handleSetupResult(
       // set it as ssrRender instead.
       instance.ssrRender = setupResult
     } else {
+      // DC: setup 返回渲染函数
       instance.render = setupResult as InternalRenderFunction
     }
   } else if (isObject(setupResult)) {
@@ -792,6 +852,7 @@ export function handleSetupResult(
     if (__DEV__ || __FEATURE_PROD_DEVTOOLS__) {
       instance.devtoolsRawSetupState = setupResult
     }
+    // DC: 把 setup 返回值变成响应式
     instance.setupState = proxyRefs(setupResult)
     if (__DEV__) {
       exposeSetupStateOnRenderContext(instance)
@@ -820,6 +881,7 @@ let installWithProxy: (i: ComponentInternalInstance) => void
  */
 export function registerRuntimeCompiler(_compile: any) {
   compile = _compile
+  // DC: 对于使用 with 块的运行时编译的渲染函数，使用新的渲染上下文代理
   installWithProxy = i => {
     if (i.render!._rc) {
       i.withProxy = new Proxy(i.ctx, RuntimeCompiledPublicInstanceProxyHandlers)
@@ -847,6 +909,7 @@ export function finishComponentSetup(
 
   // template / render function normalization
   // could be already set when returned from setup()
+  // DC: 多模版或者渲染函数的标准化
   if (!instance.render) {
     // only do on-the-fly compile if not in SSR - SSR on-the-fly compilation
     // is done by server-renderer
@@ -882,6 +945,7 @@ export function finishComponentSetup(
             extend(finalCompilerOptions.compatConfig, Component.compatConfig)
           }
         }
+        // DC: 运行时编译
         Component.render = compile(template, finalCompilerOptions)
         if (__DEV__) {
           endMeasure(instance, `compile`)
@@ -904,6 +968,7 @@ export function finishComponentSetup(
     setCurrentInstance(instance)
     pauseTracking()
     try {
+      // DC: 兼容 vue2.x 的 Options API
       applyOptions(instance)
     } finally {
       resetTracking()

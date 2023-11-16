@@ -63,7 +63,6 @@ const resolveTarget = <T = RendererElement>(
 }
 
 export const TeleportImpl = {
-  name: 'Teleport',
   __isTeleport: true,
   process(
     n1: TeleportVNode | null,
@@ -96,6 +95,7 @@ export const TeleportImpl = {
 
     if (n1 == null) {
       // insert anchors in the main view
+      // DC: 插入一个 注释节点|空白文本节点
       const placeholder = (n2.el = __DEV__
         ? createComment('teleport start')
         : createText(''))
@@ -104,7 +104,9 @@ export const TeleportImpl = {
         : createText(''))
       insert(placeholder, container, anchor)
       insert(mainAnchor, container, anchor)
+      // DC: 使用 resolveTarget 查找 to 节点
       const target = (n2.target = resolveTarget(n2.props, querySelector))
+      // DC: 生成当前的替代节点
       const targetAnchor = (n2.targetAnchor = createText(''))
       if (target) {
         insert(targetAnchor, target)
@@ -130,9 +132,10 @@ export const TeleportImpl = {
           )
         }
       }
-
+      // DC: disable 为 true，则挂载在原有的位置
       if (disabled) {
         mount(container, mainAnchor)
+        // DC: 否则挂载在target的位置
       } else if (target) {
         mount(target, targetAnchor)
       }
@@ -240,7 +243,7 @@ export const TeleportImpl = {
     parentSuspense: SuspenseBoundary | null,
     optimized: boolean,
     { um: unmount, o: { remove: hostRemove } }: RendererInternals,
-    doRemove: boolean
+    doRemove: Boolean
   ) {
     const { shapeFlag, children, anchor, targetAnchor, target, props } = vnode
 
@@ -248,19 +251,20 @@ export const TeleportImpl = {
       hostRemove(targetAnchor!)
     }
 
-    // an unmounted teleport should always unmount its children whether it's disabled or not
-    doRemove && hostRemove(anchor!)
-    if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
-      const shouldRemove = doRemove || !isTeleportDisabled(props)
-      for (let i = 0; i < (children as VNode[]).length; i++) {
-        const child = (children as VNode[])[i]
-        unmount(
-          child,
-          parentComponent,
-          parentSuspense,
-          shouldRemove,
-          !!child.dynamicChildren
-        )
+    // an unmounted teleport should always remove its children if not disabled
+    if (doRemove || !isTeleportDisabled(props)) {
+      hostRemove(anchor!)
+      if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
+        for (let i = 0; i < (children as VNode[]).length; i++) {
+          const child = (children as VNode[])[i]
+          unmount(
+            child,
+            parentComponent,
+            parentSuspense,
+            true,
+            !!child.dynamicChildren
+          )
+        }
       }
     }
   },
@@ -400,7 +404,7 @@ function hydrateTeleport(
 // Force-casted public typing for h and TSX props inference
 export const Teleport = TeleportImpl as unknown as {
   __isTeleport: true
-  new (): {
+  new(): {
     $props: VNodeProps & TeleportProps
     $slots: {
       default(): VNode[]
@@ -414,7 +418,7 @@ function updateCssVars(vnode: VNode) {
   const ctx = vnode.ctx
   if (ctx && ctx.ut) {
     let node = (vnode.children as VNode[])[0].el!
-    while (node && node !== vnode.targetAnchor) {
+    while (node !== vnode.targetAnchor) {
       if (node.nodeType === 1) node.setAttribute('data-v-owner', ctx.uid)
       node = node.nextSibling
     }

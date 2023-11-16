@@ -1,5 +1,5 @@
 import { TrackOpTypes, TriggerOpTypes } from './operations'
-import { extend, isArray, isIntegerKey, isMap, isSymbol } from '@vue/shared'
+import { extend, isArray, isIntegerKey, isMap } from '@vue/shared'
 import { EffectScope, recordEffectScope } from './effectScope'
 import {
   createDep,
@@ -16,7 +16,8 @@ import { ComputedRefImpl } from './computed'
 // which maintains a Set of subscribers, but we simply store them as
 // raw Sets to reduce memory overhead.
 type KeyToDepMap = Map<any, Dep>
-const targetMap = new WeakMap<object, KeyToDepMap>()
+// DC: 原始数据对象 map
+const targetMap = new WeakMap<any, KeyToDepMap>()
 
 // The number of effects currently being tracked recursively.
 let effectTrackDepth = 0
@@ -45,6 +46,7 @@ export type DebuggerEventExtraInfo = {
   oldTarget?: Map<any, any> | Set<any>
 }
 
+// DC: 当前激活的 effect
 export let activeEffect: ReactiveEffect | undefined
 
 export const ITERATE_KEY = Symbol(__DEV__ ? 'iterate' : '')
@@ -96,6 +98,7 @@ export class ReactiveEffect<T = any> {
       parent = parent.parent
     }
     try {
+      // DC: 保存上一次的 effect，相当于做了一个入栈出栈的操作
       this.parent = activeEffect
       activeEffect = this
       shouldTrack = true
@@ -105,6 +108,8 @@ export class ReactiveEffect<T = any> {
       if (effectTrackDepth <= maxMarkerBits) {
         initDepMarkers(this)
       } else {
+        // DC: 清空 reactiveEffect 对应的依赖
+        // DC: 防止 v-if 之类的把无用的依赖保留
         cleanupEffect(this)
       }
       return this.fn()
@@ -114,7 +119,7 @@ export class ReactiveEffect<T = any> {
       }
 
       trackOpBit = 1 << --effectTrackDepth
-
+      // DC: 释放上一次的 effect
       activeEffect = this.parent
       shouldTrack = lastShouldTrack
       this.parent = undefined
@@ -181,10 +186,10 @@ export function effect<T = any>(
   fn: () => T,
   options?: ReactiveEffectOptions
 ): ReactiveEffectRunner {
-  if ((fn as ReactiveEffectRunner).effect instanceof ReactiveEffect) {
+  if ((fn as ReactiveEffectRunner).effect) {
     fn = (fn as ReactiveEffectRunner).effect.fn
   }
-
+  // DC: 定义一个高阶函数，activeEffect 和 shouldTrack 都是在内部赋值的
   const _effect = new ReactiveEffect(fn)
   if (options) {
     extend(_effect, options)
@@ -193,6 +198,7 @@ export function effect<T = any>(
   if (!options || !options.lazy) {
     _effect.run()
   }
+  // DC: 返回高阶好的函数
   const runner = _effect.run.bind(_effect) as ReactiveEffectRunner
   runner.effect = _effect
   return runner
@@ -207,6 +213,7 @@ export function stop(runner: ReactiveEffectRunner) {
   runner.effect.stop()
 }
 
+// DC: 是否应该收集依赖
 export let shouldTrack = true
 const trackStack: boolean[] = []
 
@@ -244,14 +251,17 @@ export function resetTracking() {
  * @param type - Defines the type of access to the reactive property.
  * @param key - Identifier of the reactive property to track.
  */
+// DC: 收集依赖的过程
 export function track(target: object, type: TrackOpTypes, key: unknown) {
   if (shouldTrack && activeEffect) {
     let depsMap = targetMap.get(target)
     if (!depsMap) {
+      // DC: 每个 target 对应一个 depsMap
       targetMap.set(target, (depsMap = new Map()))
     }
     let dep = depsMap.get(key)
     if (!dep) {
+      // DC: 每个 key 对应一个 dep 集合（依赖记住的渲染集合）
       depsMap.set(key, (dep = createDep()))
     }
 
@@ -279,7 +289,9 @@ export function trackEffects(
   }
 
   if (shouldTrack) {
+    // DC: 收集当前激活的 effect 作为依赖
     dep.add(activeEffect!)
+    // DC: 当前激活的 effect 收集 dep 集合作为依赖
     activeEffect!.deps.push(dep)
     if (__DEV__ && activeEffect!.onTrack) {
       activeEffect!.onTrack(
@@ -310,12 +322,14 @@ export function trigger(
   oldValue?: unknown,
   oldTarget?: Map<unknown, unknown> | Set<unknown>
 ) {
+  // DC: 通过 targetMap 拿到 target 对应的依赖集合
   const depsMap = targetMap.get(target)
   if (!depsMap) {
+    // DC: 没有依赖，直接返回
     // never been tracked
     return
   }
-
+  // DC: 收集运行时的 effect 集合
   let deps: (Dep | undefined)[] = []
   if (type === TriggerOpTypes.CLEAR) {
     // collection being cleared
@@ -324,7 +338,7 @@ export function trigger(
   } else if (key === 'length' && isArray(target)) {
     const newLength = Number(newValue)
     depsMap.forEach((dep, key) => {
-      if (key === 'length' || (!isSymbol(key) && key >= newLength)) {
+      if (key === 'length' || key >= newLength) {
         deps.push(dep)
       }
     })
@@ -385,17 +399,21 @@ export function trigger(
     if (__DEV__) {
       triggerEffects(createDep(effects), eventInfo)
     } else {
+      // DC: 执行所有的 effect
       triggerEffects(createDep(effects))
     }
   }
 }
 
+// DC: trigger 执行 effect 的过程
 export function triggerEffects(
   dep: Dep | ReactiveEffect[],
   debuggerEventExtraInfo?: DebuggerEventExtraInfo
 ) {
   // spread into array for stabilization
   const effects = isArray(dep) ? dep : [...dep]
+  // DC: computed 的 trigger 优先级高
+  // DC: 担心 有变量或操作 依赖了 computed 以及 computed 依赖的变量
   for (const effect of effects) {
     if (effect.computed) {
       triggerEffect(effect, debuggerEventExtraInfo)
