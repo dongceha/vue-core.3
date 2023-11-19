@@ -53,8 +53,11 @@ export const ITERATE_KEY = Symbol(__DEV__ ? 'iterate' : '')
 export const MAP_KEY_ITERATE_KEY = Symbol(__DEV__ ? 'Map key iterate' : '')
 
 export class ReactiveEffect<T = any> {
+  // 用于标识副作用函数是否位于响应式上下文中被执行
   active = true
+  // 副作用函数持有它所在的所有依赖集合的引用，用于从这些依赖集合删除自身
   deps: Dep[] = []
+  // 用于嵌套 effect 执行后动态切换 activeEffect
   parent: ReactiveEffect | undefined = undefined
 
   /**
@@ -86,10 +89,12 @@ export class ReactiveEffect<T = any> {
   }
 
   run() {
+    // DC: 如果脱离响应上下文，那么不需要被收集
     if (!this.active) {
       return this.fn()
     }
     let parent: ReactiveEffect | undefined = activeEffect
+    // DC: 缓存是否需要收集依赖
     let lastShouldTrack = shouldTrack
     while (parent) {
       if (parent === this) {
@@ -100,6 +105,7 @@ export class ReactiveEffect<T = any> {
     try {
       // DC: 保存上一次的 effect，相当于做了一个入栈出栈的操作
       this.parent = activeEffect
+      // activeEffect 指向当前的 effect
       activeEffect = this
       shouldTrack = true
 
@@ -114,6 +120,7 @@ export class ReactiveEffect<T = any> {
       }
       return this.fn()
     } finally {
+      // DC: 如果未超过最大嵌套层数，则执行 initDepMarkers
       if (effectTrackDepth <= maxMarkerBits) {
         finalizeDepMarkers(this)
       }
@@ -195,6 +202,7 @@ export function effect<T = any>(
     extend(_effect, options)
     if (options.scope) recordEffectScope(_effect, options.scope)
   }
+  // DC: 如有 options 或者 不是懒加载，执行 _effect.run()
   if (!options || !options.lazy) {
     _effect.run()
   }
@@ -358,6 +366,8 @@ export function trigger(
           }
         } else if (isIntegerKey(key)) {
           // new index added to array -> length changes
+          // DC: !!!!!!! 有意思的是， map、forEach for pop push 等操作都会触发 length 的更新
+          // DC: 所以这里需要额外处理，收集 length 的依赖 等于收集了这些操作的依赖
           deps.push(depsMap.get('length'))
         }
         break
@@ -414,6 +424,22 @@ export function triggerEffects(
   const effects = isArray(dep) ? dep : [...dep]
   // DC: computed 的 trigger 优先级高
   // DC: 担心 有变量或操作 依赖了 computed 以及 computed 依赖的变量
+  // DC: 所以 当 computed 依赖的数据有变化，effect 了 computed 以及 computed 依赖的变量，
+  // DC: 也会优先触发 computed 的 effect
+  /** 
+    const { ref, effect, computed } = Vue
+    const n = ref(0)
+    const plusOne = computed(() => n.value + 1)
+    effect(() => {
+      n.value
+      console.log(plusOne.value)
+    })
+    n.value++
+    ==> 
+    1
+    2
+    2
+  */
   for (const effect of effects) {
     if (effect.computed) {
       triggerEffect(effect, debuggerEventExtraInfo)

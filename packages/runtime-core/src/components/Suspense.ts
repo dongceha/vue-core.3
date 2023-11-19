@@ -70,6 +70,7 @@ export const SuspenseImpl = {
     rendererInternals: RendererInternals
   ) {
     if (n1 == null) {
+      // DC: 初始化挂载逻辑
       mountSuspense(
         n2,
         container,
@@ -82,6 +83,7 @@ export const SuspenseImpl = {
         rendererInternals
       )
     } else {
+      // diff 的逻辑
       patchSuspense(
         n1,
         n2,
@@ -139,7 +141,9 @@ function mountSuspense(
     p: patch,
     o: { createElement }
   } = rendererInternals
+  // DC: 创建隐藏容器，用来实例化挂载 default 插槽内的内容
   const hiddenContainer = createElement('div')
+  // DC: 构造一个 suspense 对象，并赋值给 vnode.suspense
   const suspense = (vnode.suspense = createSuspenseBoundary(
     vnode,
     parentSuspense,

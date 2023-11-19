@@ -713,6 +713,7 @@ function baseCreateRenderer(
       transition &&
       !transition.persisted
     if (needCallTransitionHooks) {
+      // DC: 执行 transition 的 beforeEnter 钩子函数
       transition!.beforeEnter(el)
     }
     hostInsert(el, container, anchor)
@@ -723,6 +724,7 @@ function baseCreateRenderer(
     ) {
       queuePostRenderEffect(() => {
         vnodeHook && invokeVNodeHook(vnodeHook, parentComponent, vnode)
+        // DC: 执行 enter 钩子函数
         needCallTransitionHooks && transition!.enter(el)
         dirs && invokeDirectiveHook(vnode, null, parentComponent, 'mounted')
       }, parentSuspense)
@@ -1519,6 +1521,7 @@ function baseCreateRenderer(
           prevTree,
           nextTree,
           // parent may have changed if it's in a teleport
+          // DC: 用来处理 Teleport 组件
           hostParentNode(prevTree.el!)!,
           // anchor may have changed if it's in a fragment
           getNextHostNode(prevTree),
@@ -1529,6 +1532,7 @@ function baseCreateRenderer(
         if (__DEV__) {
           endMeasure(instance, `patch`)
         }
+        // DC: 缓存更新后的 DOM
         next.el = nextTree.el
         if (originNext === null) {
           // self-triggered update. In case of HOC, update parent component
@@ -1863,7 +1867,7 @@ function baseCreateRenderer(
     // (a b)
     // c (a b)
     // i = 0, e1 = -1, e2 = 0
-    // DC: 挂载剩余的新节点
+    // DC: 生成并挂载剩余的新节点
     if (i > e1) {
       if (i <= e2) {
         const nextPos = e2 + 1
@@ -1985,6 +1989,7 @@ function baseCreateRenderer(
           } else {
             moved = true
           }
+          // DC: 更新节点
           patch(
             prevChild,
             c2[newIndex] as VNode,

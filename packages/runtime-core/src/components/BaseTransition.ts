@@ -147,6 +147,7 @@ const BaseTransitionImpl: ComponentOptions = {
     let prevTransitionKey: any
 
     return () => {
+      // DC: 获取子节点
       const children =
         slots.default && getTransitionRawChildren(slots.default(), true)
       if (!children || !children.length) {
@@ -176,6 +177,7 @@ const BaseTransitionImpl: ComponentOptions = {
 
       // there's no need to track reactivity for these props so use the raw
       // props for a bit better perf
+      // DC: 这里 props 不需要响应式追踪，为了更好的性能，去除响应式
       const rawProps = toRaw(props)
       const { mode } = rawProps
       // check mode
@@ -206,6 +208,7 @@ const BaseTransitionImpl: ComponentOptions = {
         state,
         instance
       )
+      // DC: 为子节点添加进入 hooks 属性
       setTransitionHooks(innerChild, enterHooks)
 
       const oldChild = instance.subTree
@@ -229,6 +232,7 @@ const BaseTransitionImpl: ComponentOptions = {
         oldInnerChild.type !== Comment &&
         (!isSameVNodeType(innerChild, oldInnerChild) || transitionKeyChanged)
       ) {
+        // DC: 获取离开状态的调用函数
         const leavingHooks = resolveTransitionHooks(
           oldInnerChild,
           rawProps,
@@ -236,6 +240,7 @@ const BaseTransitionImpl: ComponentOptions = {
           instance
         )
         // update old tree's hooks in case of dynamic transition
+        // DC: 为子节点添加离开 hooks 属性
         setTransitionHooks(oldInnerChild, leavingHooks)
         // switching between different views
         if (mode === 'out-in') {
@@ -250,12 +255,14 @@ const BaseTransitionImpl: ComponentOptions = {
             }
           }
           return emptyPlaceholder(child)
+          // DC: in-out 模式状态切换，延迟移除
         } else if (mode === 'in-out' && innerChild.type !== Comment) {
           leavingHooks.delayLeave = (
             el: TransitionElement,
             earlyRemove,
             delayedLeave
           ) => {
+            // DC: 先缓存需要移除的节点
             const leavingVNodesCache = getLeavingNodesForType(
               state,
               oldInnerChild

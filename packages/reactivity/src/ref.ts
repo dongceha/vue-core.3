@@ -256,6 +256,9 @@ const shallowUnwrapHandlers: ProxyHandler<any> = {
  * @param objectWithRefs - Either an already-reactive object or a simple object
  * that contains refs.
  */
+
+// DC: 这里处理了 ref 数据，直接帮忙把 ref 数据的 .value 给代理掉了
+// DC: 所以接下来的 在 HTML 上使用到了 ref 的数据，就可以直接使用了
 export function proxyRefs<T extends object>(
   objectWithRefs: T
 ): ShallowUnwrapRef<T> {

@@ -718,7 +718,7 @@ export function setupComponent(
   initProps(instance, props, isStateful, isSSR)
   // DC: 初始化插槽
   initSlots(instance, children)
-  // DC: 设置有状态的组件实例
+  // DC: 设置有状态的组件实例（保留组件状态数据）
   const setupResult = isStateful
     ? setupStatefulComponent(instance, isSSR)
     : undefined
@@ -909,7 +909,8 @@ export function finishComponentSetup(
 
   // template / render function normalization
   // could be already set when returned from setup()
-  // DC: 多模版或者渲染函数的标准化
+  // DC: 多模版或者渲染函数的标准化，
+  // DC: 如果没有返回 render 函数，把 template 编译成 render 函数
   if (!instance.render) {
     // only do on-the-fly compile if not in SSR - SSR on-the-fly compilation
     // is done by server-renderer

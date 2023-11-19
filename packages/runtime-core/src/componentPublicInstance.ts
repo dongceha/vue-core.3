@@ -316,6 +316,7 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
     let normalizedProps
     if (key[0] !== '$') {
       // DC: 渲染代理的属性访问缓存中 -- 避免 使用 hasOwn
+      // DC: 防止接下来每一次都需要去判断 数据在 props 中，还是 data中，节省取数时间
       const n = accessCache![key]
       // DC: 从缓存中取
       if (n !== undefined) {
@@ -331,6 +332,7 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
           // default: just fallthrough
         }
         // DC: 所以 如果 data 和 setup 同时定义了同一个属性，会优先使用 setup 返回的数据
+        // DC: 优先级： setup > data > props > ctx
       } else if (hasSetupBinding(setupState, key)) {
         accessCache![key] = AccessTypes.SETUP
         // DC: 从 setState 中获取数据
@@ -448,6 +450,7 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
       data[key] = value
       return true
     } else if (hasOwn(instance.props, key)) {
+      // DC: 如果给 props 赋值，会直接给一个告警
       __DEV__ && warn(`Attempting to mutate prop "${key}". Props are readonly.`)
       return false
     }

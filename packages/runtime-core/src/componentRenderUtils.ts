@@ -335,6 +335,7 @@ const isElementRoot = (vnode: VNode) => {
   )
 }
 
+// DC: 判断是否需要更新组件
 export function shouldUpdateComponent(
   prevVNode: VNode,
   nextVNode: VNode,
@@ -352,6 +353,7 @@ export function shouldUpdateComponent(
   }
 
   // force child update for runtime directive or transition on component vnode.
+  // DC: 指令 或者 transition 组件就肯定渲染
   if (nextVNode.dirs || nextVNode.transition) {
     return true
   }

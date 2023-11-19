@@ -364,6 +364,7 @@ export function isSameVNodeType(n1: VNode, n2: VNode): boolean {
     // HMR only: if the component has been hot-updated, force a reload.
     return false
   }
+  // DC: 朴素的 type 和 key 都相同 的比较
   return n1.type === n2.type && n1.key === n2.key
 }
 

@@ -47,6 +47,7 @@ export interface ElementWithTransition extends HTMLElement {
 export const Transition: FunctionalComponent<TransitionProps> = (
   props,
   { slots }
+  // DC: 整个 transition 组件就是一个 函数组件
 ) => h(BaseTransition, resolveTransitionProps(props), slots)
 
 Transition.displayName = 'Transition'
@@ -193,9 +194,12 @@ export function resolveTransitionProps(
   const makeEnterHook = (isAppear: boolean) => {
     return (el: Element, done: () => void) => {
       const hook = isAppear ? onAppear : onEnter
+      // 移除 v-enter-to、v-enter-active 类名
       const resolve = () => finishEnter(el, isAppear, done)
       callHook(hook, [el, resolve])
+      // 下一帧渲染时
       nextFrame(() => {
+        // 删除 v-enter-from 类名
         removeTransitionClass(el, isAppear ? appearFromClass : enterFromClass)
         if (__COMPAT__ && legacyClassEnabled) {
           const legacyClass = isAppear
@@ -205,7 +209,9 @@ export function resolveTransitionProps(
             removeTransitionClass(el, legacyClass)
           }
         }
+        // 添加 v-enter-to 类名
         addTransitionClass(el, isAppear ? appearToClass : enterToClass)
+        // 动画结束时，执行 resolve 函数，即删除 v-enter-to、v-enter-active 类名
         if (!hasExplicitCallback(hook)) {
           whenTransitionEnds(el, type, enterDuration, resolve)
         }

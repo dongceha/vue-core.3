@@ -83,7 +83,7 @@ export function queueJob(job: SchedulerJob) {
   // if the job is a watch() callback, the search will start with a +1 index to
   // allow it recursively trigger itself - it is the user's responsibility to
   // ensure it doesn't end up in an infinite loop.
-  // DC: 异步任务队列
+  // DC: 异步任务队列，去重判断，让多次执行的渲染函数只能执行一次
   if (
     !queue.length ||
     !queue.includes(
@@ -91,9 +91,11 @@ export function queueJob(job: SchedulerJob) {
       isFlushing && job.allowRecurse ? flushIndex + 1 : flushIndex
     )
   ) {
+    // DC: 添加到队列尾部
     if (job.id == null) {
       queue.push(job)
     } else {
+      // DC: 按照 job id 自增的顺序添加
       queue.splice(findInsertionIndex(job.id), 0, job)
     }
     queueFlush()
@@ -247,13 +249,14 @@ function flushJobs(seen?: CountMap) {
   } finally {
     flushIndex = 0
     queue.length = 0
-
+    // DC: 执行后置队列任务
     flushPostFlushCbs(seen)
 
     isFlushing = false
     currentFlushPromise = null
     // some postFlushCb queued jobs!
     // keep flushing until it drains.
+    // DC: 如果主任务队列、后置任务队列还有没被清空，就继续递归执行
     if (queue.length || pendingPostFlushCbs.length) {
       flushJobs(seen)
     }

@@ -198,8 +198,8 @@ function createSetter(shallow = false) {
         : hasOwn(target, key)
     const result = Reflect.set(target, key, value, receiver)
     // don't trigger if target is something up in the prototype chain of original
-    // DC: 如果目标原型链也是一个 Proxy，
-    // 通过 reflect.set 修改属性会再出触发 setter，这种情况下就没必要再触发两次 trigger了
+    // DC: 如果目标原型链也是一个 Proxy，通过 reflect.set 修改属性会再出触发 setter，
+    // DC: 这种情况下就没必要再触发两次 trigger了
     if (target === toRaw(receiver)) {
       // DC: 新增
       if (!hadKey) {
@@ -231,6 +231,7 @@ function has(target: object, key: string | symbol): boolean {
   return result
 }
 
+// DC: ownKeys 则是完成了对 Object.keys for of 操作的依赖收集
 function ownKeys(target: object): (string | symbol)[] {
   track(target, TrackOpTypes.ITERATE, isArray(target) ? 'length' : ITERATE_KEY)
   return Reflect.ownKeys(target)

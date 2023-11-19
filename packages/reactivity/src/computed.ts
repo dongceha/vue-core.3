@@ -50,6 +50,7 @@ export class ComputedRefImpl<T> {
         triggerRefValue(this)
       }
     })
+    // DC: ！！ 给 当前的 computed 做一个标志位，方便之后 trigger 的时候，computed 优先执行
     this.effect.computed = this
     this.effect.active = this._cacheable = !isSSR
     this[ReactiveFlags.IS_READONLY] = isReadonly

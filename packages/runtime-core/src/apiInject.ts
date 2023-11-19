@@ -15,15 +15,20 @@ export function provide<T, K = InjectionKey<T> | string | number>(
       warn(`provide() can only be used inside setup().`)
     }
   } else {
+    // DC: 获取当前组件实例上的 provides 对象
     let provides = currentInstance.provides
     // by default an instance inherits its parent's provides object
     // but when it needs to provide values of its own, it creates its
     // own provides object using parent provides object as prototype.
     // this way in `inject` we can simply look up injections from direct
     // parent and let the prototype chain do the work.
+    // DC: 获取父组件实例上的 provides 对象
     const parentProvides =
       currentInstance.parent && currentInstance.parent.provides
+    // DC: 当前组件的 providers 指向父组件的情况  
     if (parentProvides === provides) {
+      // DC: 继承父组件再创建一个 provides
+      // DC: 这里的 provides 是通过原型链来设计的，所以取值也是从原型链来进行获取
       provides = currentInstance.provides = Object.create(parentProvides)
     }
     // TS doesn't allow symbol as index type
@@ -56,6 +61,7 @@ export function inject(
     // #2400
     // to support `app.use` plugins,
     // fallback to appContext's `provides` if the instance is at root
+    // DC: 获取父组件上的 provides 对象
     const provides = instance
       ? instance.parent == null
         ? instance.vnode.appContext && instance.vnode.appContext.provides
