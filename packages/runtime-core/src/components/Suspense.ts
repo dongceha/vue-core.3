@@ -252,6 +252,7 @@ function patchSuspense(
         suspense.isHydrating = false
         suspense.activeBranch = pendingBranch
       } else {
+        // DC: 卸载旧分支
         unmount(pendingBranch, parentComponent, suspense)
       }
       // increment pending ID. this is used to invalidate async callbacks
@@ -634,9 +635,11 @@ function createSuspenseBoundary(
     registerDep(instance, setupRenderEffect) {
       const isInPendingSuspense = !!suspense.pendingBranch
       if (isInPendingSuspense) {
+        // DC: deps 这里会被递增，记录依赖的异步数量
         suspense.deps++
       }
       const hydratedEl = instance.vnode.el
+      // DC: asyncDep promise 执行
       instance
         .asyncDep!.catch(err => {
           handleError(err, instance, ErrorCodes.SETUP_FUNCTION)
@@ -644,6 +647,7 @@ function createSuspenseBoundary(
         .then(asyncSetupResult => {
           // retry when the setup() promise resolves.
           // component may have been unmounted before resolve.
+          // 处理一些异常结果
           if (
             instance.isUnmounted ||
             suspense.isUnmounted ||
@@ -657,19 +661,23 @@ function createSuspenseBoundary(
           if (__DEV__) {
             pushWarningContext(vnode)
           }
+          // DC: setup 处理完成调用，asyncSetupResult 也是对应的渲染函数
           handleSetupResult(instance, asyncSetupResult, false)
           if (hydratedEl) {
             // vnode may have been replaced if an update happened before the
             // async dep is resolved.
             vnode.el = hydratedEl
           }
+          // DC: 占位内容，就是 mountComponent 中创建的注释节点
           const placeholder = !hydratedEl && instance.subTree.el
+          // DC: 执行 render 挂载节点
           setupRenderEffect(
             instance,
             vnode,
             // component may have been moved before resolve.
             // if this is not a hydration, instance.subTree will be the comment
             // placeholder.
+            // 找到注释占位内容的父节点，作为容器节点，也就是我们之前创建的隐藏 dom
             parentNode(hydratedEl || instance.subTree.el!)!,
             // anchor will not be used if this is hydration, so only need to
             // consider the comment placeholder case.
@@ -678,14 +686,17 @@ function createSuspenseBoundary(
             isSVG,
             optimized
           )
+          // 移除占位符
           if (placeholder) {
             remove(placeholder)
           }
+          // 更新 vnode el 属性
           updateHOCHostEl(instance, vnode.el)
           if (__DEV__) {
             popWarningContext()
           }
           // only decrease deps count if suspense is not already resolved
+          // DC: 当所有的异步依赖处理完成后执行 suspense.resolve()
           if (isInPendingSuspense && --suspense.deps === 0) {
             suspense.resolve()
           }

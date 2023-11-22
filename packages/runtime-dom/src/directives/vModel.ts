@@ -32,6 +32,7 @@ function onCompositionEnd(e: Event) {
   const target = e.target as any
   if (target.composing) {
     target.composing = false
+    // DC: dom 派发 input 事件
     target.dispatchEvent(new Event('input'))
   }
 }
@@ -46,18 +47,27 @@ export const vModelText: ModelDirective<
   HTMLInputElement | HTMLTextAreaElement
 > = {
   created(el, { modifiers: { lazy, trim, number } }, vnode) {
+    // DC: 获取 props 上 onUpdate:modelValue 函数
     el[assignKey] = getModelAssigner(vnode)
     const castToNumber =
       number || (vnode.props && vnode.props.type === 'number')
+    // DC: 注册 input/change 事件 
     addEventListener(el, lazy ? 'change' : 'input', e => {
       if ((e.target as any).composing) return
       let domValue: string | number = el.value
+      //  .trim 修饰符
       if (trim) {
         domValue = domValue.trim()
       }
       if (castToNumber) {
         domValue = looseToNumber(domValue)
       }
+      // DC: 执行 onUpdate:modelValue 函数
+      // <Component v-model="value1" /> 编译之后的代码如下： 
+      // modelValue: _ctx.value1,
+      // "onUpdate:modelValue": $event => ((_ctx.value1) = $event)
+      // 所以 emit('onUpdate:modelValue', value1) 
+      // 会执行 $event => ((_ctx.value1) = $event)
       el[assignKey](domValue)
     })
     if (trim) {
@@ -77,6 +87,7 @@ export const vModelText: ModelDirective<
   },
   // set value on mounted so it's after min/max for type="range"
   mounted(el, { value }) {
+    // DC: 赋值
     el.value = value == null ? '' : value
   },
   beforeUpdate(el, { value, modifiers: { lazy, trim, number } }, vnode) {
@@ -101,6 +112,7 @@ export const vModelText: ModelDirective<
       }
     }
 
+    // DC: 更新值
     el.value = newValue
   }
 }

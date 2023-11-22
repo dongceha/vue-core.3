@@ -92,10 +92,14 @@ export function withDirectives<T extends VNode>(
   const instance =
     (getExposeProxy(internalInstance) as ComponentPublicInstance) ||
     internalInstance.proxy
+  // DC: 获取指令集
   const bindings: DirectiveBinding[] = vnode.dirs || (vnode.dirs = [])
+  // DC: 遍历 directives
   for (let i = 0; i < directives.length; i++) {
     let [dir, value, arg, modifiers = EMPTY_OBJ] = directives[i]
+    // DC: 如果存在指令
     if (dir) {
+      // DC: 指令是个函数，构造 mounted、updated 钩子
       if (isFunction(dir)) {
         dir = {
           mounted: dir,

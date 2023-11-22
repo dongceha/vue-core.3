@@ -190,7 +190,7 @@ export type NormalizedPropsOptions = [NormalizedProps, string[]] | []
 // DC: 初始化props
 export function initProps(
   instance: ComponentInternalInstance,
-  rawProps: Data | null,
+  rawProps: Data | null, // 这个就是写在配置上的 props
   isStateful: number, // result of bitwise flag comparison
   isSSR = false
 ) {

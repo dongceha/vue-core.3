@@ -150,7 +150,9 @@ export function emit(
     }
   }
 
+  // DC: 定义事件名称
   let handlerName
+  // DC: update:xxx => onUpdate:xxx
   let handler =
     props[(handlerName = toHandlerKey(event))] ||
     // also try camelCase event handler (#2249)

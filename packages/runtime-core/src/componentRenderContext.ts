@@ -67,6 +67,8 @@ export type ContextualRenderFn = {
  * Wrap a slot function to memoize current rendering instance
  * @private compiler helper
  */
+// DC: 给 slot 创建上下文环境，作为高阶函数 首先用闭包 缓存住 父组件，
+// 然后返回一个渲染函数给子组件，注入 slot 的上下文
 export function withCtx(
   fn: Function,
   ctx: ComponentInternalInstance | null = currentRenderingInstance,
@@ -79,7 +81,7 @@ export function withCtx(
     return fn
   }
   // DC: 这么别扭，不断设置 instance 的过程是为了在子组件设置slot 的过程中哦该
-  // 作用域依旧是父组件的作用域
+  // DC: 作用域依旧是父组件的作用域
   const renderFnWithContext: ContextualRenderFn = (...args: any[]) => {
     // If a user calls a compiled slot inside a template expression (#1745), it
     // can mess up block tracking, so by default we disable block tracking and
@@ -89,11 +91,14 @@ export function withCtx(
     if (renderFnWithContext._d) {
       setBlockTracking(-1)
     }
+    // DC: 暂存子组件实例
     const prevInstance = setCurrentRenderingInstance(ctx)
     let res
     try {
+      // DC: 运行创建 vnode 的函数
       res = fn(...args)
     } finally {
+      // 重置回子组件实例
       setCurrentRenderingInstance(prevInstance)
       if (renderFnWithContext._d) {
         setBlockTracking(1)

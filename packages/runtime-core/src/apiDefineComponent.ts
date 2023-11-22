@@ -278,6 +278,7 @@ export function defineComponent(
   options: unknown,
   extraOptions?: ComponentOptions
 ) {
+  // DC: defineComponent 也没做啥，就是把对象组装了一遍，然后返回
   return isFunction(options)
     ? // #8326: extend call and options.name access are considered side-effects
       // by Rollup, so we have to wrap it in a pure-annotated IIFE.

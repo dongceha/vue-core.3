@@ -40,7 +40,7 @@ export function renderSlot(
     if (name !== 'default') props.name = name
     return createVNode('slot', props, fallback && fallback())
   }
-
+  // DC: 根据 name 获取 slot 内容
   let slot = slots[name]
 
   if (__DEV__ && slot && slot.length > 1) {
@@ -61,6 +61,7 @@ export function renderSlot(
   }
   openBlock()
   const validSlotContent = slot && ensureValidVNode(slot(props))
+  // DC: 创建 slot vnode
   const rendered = createBlock(
     Fragment,
     {

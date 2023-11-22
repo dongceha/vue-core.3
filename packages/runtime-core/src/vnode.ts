@@ -787,6 +787,7 @@ export function normalizeChildren(vnode: VNode, children: unknown) {
       if (!slotFlag && !(InternalObjectKey in children!)) {
         // if slots are not normalized, attach context instance
         // (compiled / normalized slots already have context)
+        // DC: 如果 slots 还没有被标准化，添加上下文实例
         ;(children as RawSlots)._ctx = currentRenderingInstance
       } else if (slotFlag === SlotFlags.FORWARDED && currentRenderingInstance) {
         // a child component receives forwarded slots from the parent.

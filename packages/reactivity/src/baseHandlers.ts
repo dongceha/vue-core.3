@@ -142,7 +142,10 @@ function createGetter(isReadonly = false, shallow = false) {
     if (!isReadonly) {
       track(target, TrackOpTypes.GET, key)
     }
-
+    // DC: 如果是 shallow 那么直接返回
+    // DC: props 走的就是 shallow，所以 如果传入 ref，能再子节点获得当前 ref，而不是 ref 的值
+    // DC: 但是还有一点要注意，vue 模板传入 ref 会自动解出 ref，所以 只能通过 toref  试验（通过！！）
+    // DC: 如果传入的是 reactive，那对应的也能获取到当前的值
     if (shallow) {
       return res
     }

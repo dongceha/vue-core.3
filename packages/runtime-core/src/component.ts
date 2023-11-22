@@ -714,7 +714,8 @@ export function setupComponent(
   const { props, children } = instance.vnode
   // DC: 判断是否是一个有状态的组件
   const isStateful = isStatefulComponent(instance)
-  // DC: 初始化 props
+  // DC: 初始化 props，只有在 props 定义的情况下才初始化，
+  // DC: 如果 setup 没有写，就不给传入的 props 附上对应的值
   initProps(instance, props, isStateful, isSSR)
   // DC: 初始化插槽
   initSlots(instance, children)
@@ -800,6 +801,7 @@ function setupStatefulComponent(
       } else if (__FEATURE_SUSPENSE__) {
         // async setup returned Promise.
         // bail here and wait for re-entry.
+        // DC: 在 suspense 模式下，为实例 asyncDep 赋值为 setupResult
         instance.asyncDep = setupResult
         if (__DEV__ && !instance.suspense) {
           const name = Component.name ?? 'Anonymous'
