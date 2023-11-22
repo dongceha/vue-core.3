@@ -519,7 +519,7 @@ export function normalizePropsOptions(
   if (cached) {
     return cached
   }
-
+  // DC: 所以 在当前实例里能拿到的 props 对象，就是 在 props 中定义的特殊对象
   const raw = comp.props
   const normalized: NormalizedPropsOptions[0] = {}
   const needCastKeys: NormalizedPropsOptions[1] = []
